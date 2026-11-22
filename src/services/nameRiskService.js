@@ -1,179 +1,48 @@
-import {
-  LANGUAGE_CATALOG,
-  SIMILARITY_LEXICON,
-  TRANSLATION_DICTIONARY,
-  TRANSLATION_RISK_RULES,
-} from '../data/dummyRiskData'
-import { getSimilarityScore, hasDirectMatch, normalizeWord } from '../utils/textSimilarity'
+import { LANGUAGE_CATALOG, LEXICON } from '../data/nameLexicon.js'
+import { isOneEditApart, normalizeWord } from '../utils/textSimilarity.js'
 
-const SIMULATED_DELAY_MS = 700
+export const MAX_NAME_LENGTH = 80
+const priority = { offensive: 0, wordplay: 1, negative: 2, similar: 3, neutral: 4 }
 
-function wait(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
+export function validateName(name) {
+  if (typeof name !== 'string' || !name.trim()) return 'Enter a brand name.'
+  if (name.trim().length > MAX_NAME_LENGTH) return 'Use up to 80 characters.'
+  if ((normalizeWord(name).match(/[\p{L}\p{N}]/gu) ?? []).length < 2) {
+    return 'Use at least two letters or numbers.'
+  }
+  return ''
 }
 
-function toPercentage(value) {
-  return Math.max(0, Math.min(100, Math.round(value * 100)))
+export function brandWords(name) {
+  return normalizeWord(name.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2'))
 }
 
-function computeRiskStatus(score) {
-  if (score >= 70) {
-    return 'High'
+function findMatch(entry, name, words) {
+  const forms = [entry.word, ...(entry.aliases ?? [])].map(normalizeWord)
+  if (forms.includes(name)) return { match: 'exact', matchedText: name }
+  for (const form of forms) {
+    if ((' ' + name + ' ').includes(' ' + form + ' ')) return { match: 'token', matchedText: form }
   }
-
-  if (score >= 40) {
-    return 'Medium'
-  }
-
-  return 'Low'
+  if (entry.tone === 'neutral' || entry.tone === 'wordplay') return
+  const near = words.find(word => forms.some(form => isOneEditApart(word, form)))
+  if (near) return { match: 'similar', matchedText: near }
 }
 
-function buildDefaultMeaning(name, languageCode) {
-  const dictionary = {
-    en: `${name} (brand token)`,
-    id: `${name} (brand token)`,
-    es: `${name} (brand token)`,
-    fr: `${name} (brand token)`,
-    ja: `${name} (brand token)`,
-    ar: `${name} (brand token)`,
+export function checkNameRisk(input) {
+  const error = validateName(input)
+  if (error) throw new Error(error)
+
+  const normalized = brandWords(input)
+  const words = normalized.split(' ')
+  const findings = []
+  for (const entry of LEXICON) {
+    const match = findMatch(entry, normalized, words)
+    if (match) findings.push({ ...entry, ...match, signal: match.match === 'similar' ? 'similar' : entry.tone })
   }
+  findings.sort((a, b) => priority[a.signal] - priority[b.signal])
 
-  return dictionary[languageCode] ?? name
-}
-
-function buildTranslationRows(normalizedName, rawName) {
-  const dictionaryEntry = TRANSLATION_DICTIONARY[normalizedName]
-
-  return LANGUAGE_CATALOG.map(({ code, language }) => {
-    const meaning = dictionaryEntry?.[code] ?? buildDefaultMeaning(rawName, code)
-    const note = dictionaryEntry ? 'dummy dictionary' : 'dummy generated'
-
-    return {
-      language,
-      meaning,
-      note,
-    }
-  })
-}
-
-function buildSimilarityRows(rawName) {
-  const ranked = SIMILARITY_LEXICON.map((entry) => {
-    const score = getSimilarityScore(rawName, entry.term)
-    const direct = hasDirectMatch(rawName, entry.term)
-    const finalScore = direct ? Math.max(score, 0.66) : score
-
-    return {
-      word: entry.term,
-      language: entry.language,
-      meaning: entry.meaning,
-      label: entry.label,
-      severity: entry.severity,
-      similarityScore: toPercentage(finalScore),
-    }
-  })
-    .sort((left, right) => right.similarityScore - left.similarityScore)
-    .filter((row, index) => row.similarityScore >= 35 || index < 5)
-    .slice(0, 8)
-
-  return ranked
-}
-
-function buildProfanityResult(similarityRows) {
-  const items = similarityRows.filter(
-    (item) => item.label === 'offensive' && item.similarityScore >= 45,
-  )
-
-  return {
-    detected: items.length > 0,
-    items,
-  }
-}
-
-function calculateTranslationRiskBoost(translations) {
-  let boost = 0
-  const reasons = []
-
-  for (const translation of translations) {
-    const value = translation.meaning.toLowerCase()
-    const matchedRule = TRANSLATION_RISK_RULES.find((rule) => value.includes(rule.keyword))
-
-    if (matchedRule) {
-      boost += matchedRule.riskBoost
-      reasons.push({
-        language: translation.language,
-        reason: matchedRule.reason,
-      })
-    }
-  }
-
-  return {
-    score: Math.min(26, boost),
-    reasons,
-  }
-}
-
-function calculateRiskScore(similarityRows, profanityResult, translations) {
-  const topSimilarity = similarityRows[0]?.similarityScore ?? 0
-  const profanityWeighted = profanityResult.items.reduce((accumulator, item) => {
-    const weighted = Math.round((item.severity * item.similarityScore) / 100)
-    return accumulator + weighted
-  }, 0)
-  const translationRisk = calculateTranslationRiskBoost(translations)
-
-  const score = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        8 +
-          topSimilarity * 0.2 +
-          Math.min(58, profanityWeighted) +
-          translationRisk.score +
-          profanityResult.items.length * 4,
-      ),
-    ),
-  )
-
-  return {
-    score,
-    translationRiskReasons: translationRisk.reasons,
-  }
-}
-
-export async function checkNameRisk(nameInput) {
-  const cleanedName = nameInput.trim()
-  const normalizedName = normalizeWord(cleanedName)
-
-  if (!cleanedName || normalizedName.length < 2) {
-    throw new Error('Name must be at least 2 characters.')
-  }
-
-  await wait(SIMULATED_DELAY_MS)
-
-  const translation = buildTranslationRows(normalizedName, cleanedName)
-  const similarity = buildSimilarityRows(cleanedName)
-  const profanity = buildProfanityResult(similarity)
-  const riskResult = calculateRiskScore(similarity, profanity, translation)
-  const riskScore = riskResult.score
-  const status = computeRiskStatus(riskScore)
-
-  return {
-    summary: {
-      name: cleanedName,
-      riskScore,
-      status,
-      checkedAt: new Date().toISOString(),
-    },
-    similarity,
-    translation,
-    profanity,
-    processing: {
-      translate: true,
-      profanityCheck: true,
-      similarityCheck: true,
-    },
-    notes: riskResult.translationRiskReasons,
-  }
+  const matched = new Set(findings.map(item => item.language))
+  const unknown = LANGUAGE_CATALOG.filter(({ code }) => !matched.has(code))
+  const flagged = new Set(findings.filter((item) => item.signal !== 'neutral').map((item) => item.language))
+  return { name: input.trim(), languages: [...LANGUAGE_CATALOG], findings, unknown, flaggedCount: flagged.size }
 }

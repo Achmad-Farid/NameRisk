@@ -1,41 +1,36 @@
 import { defineStore } from 'pinia'
-import NProgress from 'nprogress'
-import { SAMPLE_NAMES } from '../data/dummyRiskData'
-import { checkNameRisk } from '../services/nameRiskService'
-
-NProgress.configure({
-  showSpinner: false,
-  trickleSpeed: 120,
-})
+import { checkNameRisk } from '../services/nameRiskService.js'
+import { readAccount, saveCheck, addTokenPack } from '../services/demoAccount.js'
 
 export const useNameRiskStore = defineStore('name-risk', {
   state: () => ({
-    report: null,
-    loading: false,
-    errorMessage: '',
-    sampleNames: SAMPLE_NAMES,
-    recentChecks: [],
+    name: '',
+    account: null, busy: false, accountError: '',
   }),
   actions: {
-    async runCheck(name) {
-      this.loading = true
-      this.errorMessage = ''
-
-      NProgress.start()
-
+    async refresh() {
       try {
-        const report = await checkNameRisk(name)
-        this.report = report
-        this.recentChecks = [
-          report.summary.name,
-          ...this.recentChecks.filter((item) => item !== report.summary.name),
-        ].slice(0, 5)
-      } catch (error) {
-        this.report = null
-        this.errorMessage = error?.message ?? 'Failed to process dummy data.'
+        this.account = (await readAccount()).account
+        this.accountError = ''
+      } catch {
+        this.accountError = 'Your saved account details are unavailable in this browser.'
+      }
+    },
+    async runCheck() {
+      return this.commit(() => saveCheck(checkNameRisk(this.name)))
+    },
+    async addPack(id) {
+      return this.commit(() => addTokenPack(id))
+    },
+    async commit(operation) {
+      if (this.busy) return
+      this.busy = true
+      try {
+        const { account, result } = await operation()
+        this.account = account
+        return result
       } finally {
-        this.loading = false
-        NProgress.done()
+        this.busy = false
       }
     },
   },
