@@ -1,11 +1,21 @@
 <script setup>
 import { computed } from 'vue'
-import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { similarSpelling } from '../../services/nameRiskService.js'
 
 const props = defineProps({ report: { type: Object, required: true }, caption: { type: String, required: true } })
-const labels = { negative: 'Unwanted association', offensive: 'Potential insult', wordplay: 'Unintended wordplay', similar: 'Similar spelling' }
+const categories = { negative: 'Negative association', offensive: 'Potential insult', wordplay: 'Unintended wordplay' }
 const languages = computed(() => Object.fromEntries(props.report.languages.map(item => [item.code, item.language])))
-const risks = computed(() => props.report.findings.filter(item => item.signal !== 'neutral'))
+const neutral = computed(() => props.report.findings.filter(item => item.signal === 'neutral'))
+const groups = computed(() => [
+  { title: 'Direct matches', items: props.report.findings.filter(item => item.signal !== 'neutral' && item.match !== 'similar') },
+  { title: 'Similar words to review', items: props.report.findings.filter(item => item.match === 'similar') },
+].filter(group => group.items.length))
+const total = computed(() => groups.value.reduce((sum, group) => sum + group.items.length, 0))
+
+function referenceWord(item) {
+  if (item.match === 'similar') return item.comparedForm || similarSpelling(item, item.matchedText) || item.word
+  return [item.word, ...(item.aliases ?? [])].find(form => form.toLowerCase() === item.matchedText) || item.word
+}
 </script>
 
 <template>
@@ -13,19 +23,28 @@ const risks = computed(() => props.report.findings.filter(item => item.signal !=
     <header class="result-heading">
       <p>{{ caption }}</p>
       <h2><bdi>{{ report.name }}</bdi></h2>
+      <p class="report-summary" v-if="total">{{ total }} {{ total === 1 ? 'finding' : 'findings' }} worth reviewing.</p>
+      <p class="report-summary" v-else>{{ neutral.length ? 'No flagged meaning found in the matching entries.' : 'No matching entry found. There is not enough evidence to assess this name.' }}</p>
     </header>
-    <article v-for="item in risks" :key="item.language + item.word" class="finding">
-      <ExclamationTriangleIcon class="finding-icon" aria-hidden="true" />
-      <div>
-        <h3>{{ languages[item.language] }} <span>· {{ labels[item.signal] }}</span></h3>
-        <p v-if="item.signal === 'similar'">“{{ item.matchedText }}” is spelled like “{{ item.word }}” ({{ item.meaning }}). A local speaker can tell you whether the resemblance is noticeable.</p>
-        <p v-else>{{ item.impact }}</p>
-        <a class="source-link" :href="item.source" target="_blank" rel="noopener noreferrer">Cambridge Dictionary<span class="sr-only"> (opens in a new tab)</span></a>
-      </div>
-    </article>
-    <div v-if="!risks.length" class="no-findings">
-      <h3>{{ report.findings.length ? 'No flagged meaning found' : 'No matching entry found' }}</h3>
-      <p>{{ report.findings.length ? 'The matching entries have ordinary meanings. Local slang may have other readings.' : 'There isn’t enough information here to assess this name.' }}</p>
-    </div>
+    <section v-for="group in groups" :key="group.title" class="match-group">
+      <h3>{{ group.title }}</h3>
+      <article v-for="item in group.items" :key="item.language + item.word" class="match-detail">
+        <div class="match-top">
+          <h4><bdi :lang="item.language">{{ referenceWord(item) }}</bdi>
+            <small v-if="item.word !== referenceWord(item)" :lang="item.language">({{ item.word }})</small>
+          </h4>
+          <span class="concern-type">{{ categories[item.tone] }}</span>
+        </div>
+        <p class="match-meaning"><strong>{{ languages[item.language] }}</strong> · {{ item.meaning }}</p>
+        <p class="evidence"><strong>In your name</strong> <bdi>“{{ item.matchedText }}”</bdi> · {{ item.match === 'similar' ? 'One letter apart' : item.match === 'exact' ? 'Full name match' : 'Whole word or phrase' }}</p>
+        <p class="match-impact">{{ item.impact }}</p>
+        <a class="source-link" :href="item.source" target="_blank" rel="noopener noreferrer">Cambridge Dictionary<span class="sr-only"> — {{ item.word }} (opens in a new tab)</span></a>
+      </article>
+      <p v-if="group.items[0].match === 'similar'" class="spelling-note">These meanings belong to the reference words. Ask a local speaker whether the resemblance would bring them to mind.</p>
+    </section>
+    <details v-if="neutral.length" class="ordinary-entries">
+      <summary>Ordinary meanings found ({{ neutral.length }})</summary>
+      <ul><li v-for="item in neutral" :key="item.language + item.word"><bdi>{{ item.word }}</bdi> · {{ languages[item.language] }} · {{ item.meaning }}. <a class="source-link" :href="item.source" target="_blank" rel="noopener noreferrer">Source</a></li></ul>
+    </details>
   </div>
 </template>

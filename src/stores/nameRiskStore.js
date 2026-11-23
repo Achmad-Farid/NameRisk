@@ -19,6 +19,14 @@ export const useNameRiskStore = defineStore('name-risk', {
     async runCheck() {
       return this.commit(() => saveCheck(checkNameRisk(this.name)))
     },
+    async remember(report) {
+      try {
+        this.account = (await saveCheck(report, { useToken: false })).account
+        this.accountError = ''
+      } catch {
+        this.accountError = 'Your browser could not save this check to history.'
+      }
+    },
     async addPack(id) {
       return this.commit(() => addTokenPack(id))
     },

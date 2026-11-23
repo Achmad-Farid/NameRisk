@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ClockIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import NameCheckForm from '../components/forms/NameCheckForm.vue'
 import NameReport from '../components/report/NameReport.vue'
 import { SAMPLES } from '../data/nameLexicon.js'
@@ -11,6 +12,9 @@ const route = useRoute()
 const store = useNameRiskStore()
 const name = ref('')
 const checked = ref(null)
+const view = ref('checker')
+const fromHistory = ref(false)
+const resultArea = ref(null)
 const sample = computed(() => SAMPLES.find(item => item.id === route.query.sample) ?? SAMPLES[0])
 const saved = computed(() => store.account?.reports.find(item => item.id === route.query.report))
 const displayed = computed(() => {
@@ -18,16 +22,38 @@ const displayed = computed(() => {
   if (route.query.report) return saved.value?.report
   return checkNameRisk(sample.value.name)
 })
-const caption = computed(() => checked.value ? 'Result' : route.query.report ? 'Saved result' : 'Example result')
+const caption = computed(() => {
+  if (checked.value) return fromHistory.value ? 'Saved report' : 'Name risk report'
+  return route.query.report ? 'Saved report' : 'Example report'
+})
+const dateFormat = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' })
 
 watch(() => route.fullPath, () => {
   name.value = route.query.sample ? sample.value.name : ''
   checked.value = null
+  view.value = 'checker'
   if (route.query.report) store.refresh()
 }, { immediate: true })
 
 function check(value) {
-  checked.value = checkNameRisk(value)
+  const report = checkNameRisk(value)
+  checked.value = report
+  fromHistory.value = false
+  store.remember(report)
+}
+
+function showHistory() {
+  view.value = 'history'
+  store.refresh()
+}
+
+async function openReport(report) {
+  name.value = report.name
+  checked.value = report
+  fromHistory.value = true
+  view.value = 'checker'
+  await nextTick()
+  resultArea.value?.focus()
 }
 </script>
 
@@ -38,11 +64,36 @@ function check(value) {
         <h1>Brand name checker</h1>
         <p>See if your name could sound offensive or become a punchline abroad.</p>
       </header>
-      <NameCheckForm v-model="name" @check="check" />
-      <section class="result-area" aria-label="Name check result" aria-live="polite" aria-atomic="true">
-        <NameReport v-if="displayed" :report="displayed" :caption="caption" />
-        <p v-else-if="!store.account && !store.accountError">Loading saved result…</p>
-        <p v-else>This saved result is unavailable. Enter a name above to check it.</p>
+      <div class="checker-views" role="group" aria-label="Name checker views">
+        <button type="button" :aria-pressed="view === 'checker'" @click="view = 'checker'"><MagnifyingGlassIcon aria-hidden="true" />Name check</button>
+        <button type="button" :aria-pressed="view === 'history'" @click="showHistory"><ClockIcon aria-hidden="true" />History</button>
+      </div>
+      <template v-if="view === 'checker'">
+        <NameCheckForm v-model="name" @check="check" />
+        <p v-if="store.accountError && checked" class="error" role="status">{{ store.accountError }}</p>
+        <section ref="resultArea" class="result-area" aria-label="Name check report" tabindex="-1">
+          <p class="sr-only" role="status">{{ displayed ? caption + ' for ' + displayed.name : '' }}</p>
+          <NameReport v-if="displayed" :key="displayed.name" :report="displayed" :caption="caption" />
+          <p v-else-if="!store.account && !store.accountError">Loading saved report…</p>
+          <p v-else>This saved report is unavailable. Enter a name above to check it.</p>
+        </section>
+      </template>
+      <section v-else class="check-history" aria-labelledby="history-heading">
+        <h2 id="history-heading">Check history</h2>
+        <p v-if="store.accountError" class="error" role="status">{{ store.accountError }}</p>
+        <p v-else-if="!store.account" role="status">Loading history…</p>
+        <ul v-if="store.account?.reports.length" class="history-list">
+          <li v-for="item in store.account.reports" :key="item.id">
+            <button class="history-item" type="button" @click="openReport(item.report)">
+              <span><strong><bdi>{{ item.report.name }}</bdi></strong><small>{{ item.report.flaggedCount ? 'Potential concern found' : 'No flagged match' }}</small></span>
+              <time :datetime="item.lastCheckedAt || item.createdAt">{{ dateFormat.format(new Date(item.lastCheckedAt || item.createdAt)) }}</time>
+            </button>
+          </li>
+        </ul>
+        <div v-else-if="store.account && !store.accountError" class="panel empty">
+          <p>No checks yet. Names you check will appear here.</p>
+          <button class="text-link" type="button" @click="view = 'checker'">Check a name</button>
+        </div>
       </section>
     </div>
   </div>

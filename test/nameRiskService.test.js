@@ -39,6 +39,17 @@ test('known Japanese spellings match only in their recorded language', () => {
   }
 })
 
+test('reports keep each similar negative word and the spelling that triggered it', () => {
+  const { findings } = checkNameRisk('Bako Sialo Gift')
+  assert.deepEqual(findings.filter(item => item.match === 'similar').map(item =>
+    [item.matchedText, item.comparedForm, item.word, item.language],
+  ), [
+    ['bako', 'baka', 'ばか', 'ja'],
+    ['sialo', 'sial', 'sial', 'id'],
+  ])
+  assert.ok(findings.some(item => item.match === 'token' && item.signal === 'negative'))
+})
+
 test('invalid names ask for a correction', () => {
   for (const name of ['', ' - ', 'a', 'a'.repeat(81)]) assert.throws(() => checkNameRisk(name))
 })

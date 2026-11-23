@@ -18,10 +18,12 @@ function submit() {
   emit('check', name.value.trim())
 }
 
-function chooseSample(sample) {
-  name.value = sample.name
+const examples = ['Bako Studio', ...SAMPLES.map(sample => sample.name)]
+
+function chooseSample(example) {
+  name.value = example
   error.value = ''
-  emit('check', sample.name)
+  emit('check', example)
 }
 </script>
 
@@ -40,7 +42,7 @@ function chooseSample(sample) {
     <p v-if="error" id="check-error" class="error" role="alert">{{ error }}</p>
     <div class="try-names">
       <span>Try an example</span>
-      <button v-for="sample in SAMPLES" :key="sample.id" type="button" @click="chooseSample(sample)">{{ sample.name }}</button>
+      <button v-for="example in examples" :key="example" type="button" @click="chooseSample(example)">{{ example }}</button>
     </div>
   </form>
 </template>

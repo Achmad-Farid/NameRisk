@@ -52,18 +52,22 @@ export function readAccount() {
   return accessAccount()
 }
 
-export function saveCheck(report) {
+export function saveCheck(report, { useToken = true } = {}) {
   return accessAccount(account => {
     const name = brandWords(report.name)
-    const previous = account.reports.find(item => brandWords(item.report.name) === name)
-    if (previous) {
+    const index = account.reports.findIndex(item => brandWords(item.report.name) === name)
+    const lastCheckedAt = new Date().toISOString()
+    if (index !== -1) {
+      const [previous] = account.reports.splice(index, 1)
       previous.report = report
+      previous.lastCheckedAt = lastCheckedAt
+      account.reports.unshift(previous)
       return { id: previous.id, reused: true }
     }
-    if (account.tokens < 1) throw new Error('You need one token for a new report. Add demo tokens on the Pricing page.')
+    if (useToken && account.tokens < 1) throw new Error('You need one token for a new report. Add demo tokens on the Pricing page.')
     const id = String(account.reports.length + 1)
-    account.reports.unshift({ id, createdAt: new Date().toISOString(), report })
-    account.tokens--
+    account.reports.unshift({ id, createdAt: lastCheckedAt, lastCheckedAt, report })
+    if (useToken) account.tokens--
     return { id, reused: false }
   })
 }

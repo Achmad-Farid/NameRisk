@@ -24,8 +24,14 @@ function findMatch(entry, name, words) {
     if ((' ' + name + ' ').includes(' ' + form + ' ')) return { match: 'token', matchedText: form }
   }
   if (entry.tone === 'neutral' || entry.tone === 'wordplay') return
-  const near = words.find(word => forms.some(form => isOneEditApart(word, form)))
-  if (near) return { match: 'similar', matchedText: near }
+  for (const word of words) {
+    const comparedForm = similarSpelling(entry, word)
+    if (comparedForm) return { match: 'similar', matchedText: word, comparedForm }
+  }
+}
+
+export function similarSpelling(entry, word) {
+  return [entry.word, ...(entry.aliases ?? [])].find(form => isOneEditApart(word, normalizeWord(form)))
 }
 
 export function checkNameRisk(input) {
