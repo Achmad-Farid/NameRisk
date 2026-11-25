@@ -2,7 +2,7 @@ import { LANGUAGE_CATALOG, LEXICON } from '../data/nameLexicon.js'
 import { isOneEditApart, normalizeWord } from '../utils/textSimilarity.js'
 
 export const MAX_NAME_LENGTH = 80
-const priority = { offensive: 0, wordplay: 1, negative: 2, similar: 3, neutral: 4 }
+const priority = { offensive: 0, wordplay: 1, negative: 2, phonetic: 3, similar: 4, neutral: 5 }
 
 export function validateName(name) {
   if (typeof name !== 'string' || !name.trim()) return 'Enter a brand name.'
@@ -24,6 +24,9 @@ function findMatch(entry, name, words) {
     if ((' ' + name + ' ').includes(' ' + form + ' ')) return { match: 'token', matchedText: form }
   }
   if (entry.tone === 'neutral' || entry.tone === 'wordplay') return
+  if (entry.reading && words.includes(entry.reading.input)) {
+    return { match: 'phonetic', matchedText: entry.reading.input }
+  }
   for (const word of words) {
     const comparedForm = similarSpelling(entry, word)
     if (comparedForm) return { match: 'similar', matchedText: word, comparedForm }
@@ -43,12 +46,15 @@ export function checkNameRisk(input) {
   const findings = []
   for (const entry of LEXICON) {
     const match = findMatch(entry, normalized, words)
-    if (match) findings.push({ ...entry, ...match, signal: match.match === 'similar' ? 'similar' : entry.tone })
+    if (match) {
+      const signal = ['similar', 'phonetic'].includes(match.match) ? match.match : entry.tone
+      findings.push({ ...entry, ...match, signal })
+    }
   }
   findings.sort((a, b) => priority[a.signal] - priority[b.signal])
 
   const matched = new Set(findings.map(item => item.language))
   const unknown = LANGUAGE_CATALOG.filter(({ code }) => !matched.has(code))
   const flagged = new Set(findings.filter((item) => item.signal !== 'neutral').map((item) => item.language))
-  return { name: input.trim(), languages: [...LANGUAGE_CATALOG], findings, unknown, flaggedCount: flagged.size }
+  return { name: input.trim(), checkedAt: new Date().toISOString(), languages: [...LANGUAGE_CATALOG], findings, unknown, flaggedCount: flagged.size }
 }

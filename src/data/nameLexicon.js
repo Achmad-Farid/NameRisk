@@ -6,22 +6,51 @@ export const LANGUAGE_CATALOG = [
   { code: 'fr', language: 'French' },
   { code: 'es', language: 'Spanish' },
   { code: 'ar', language: 'Arabic' },
+  { code: 'it', language: 'Italian' },
+  { code: 'jv', language: 'Javanese' },
 ]
 
 const dictionary = 'https://dictionary.cambridge.org/dictionary/'
+const contoSource = 'https://www.treccani.it/vocabolario/conto_%28Sinonimi-e-Contrari%29/'
 
 export const LEXICON = [
+  {
+    language: 'it', word: 'conto', meaning: 'an account or bill', tone: 'neutral',
+    ipa: '/ˈkonto/', pronunciation: 'KON-to', source: contoSource, sourceName: 'Treccani',
+  },
+  {
+    language: 'id', word: 'kontol', meaning: 'a vulgar term for the penis', tone: 'offensive',
+    categories: ['Offensive', 'Sexual'], pronunciation: 'kon-tol',
+    usage: 'Documented in Indonesian-language app reviews as a vulgar expression. Population-wide frequency was not measured.',
+    impact: 'Listeners who hear this term in a brand name could turn the name into a sexual joke.',
+    source: 'https://kamus.sabda.org/kamus/kontol', sourceName: 'Kamus SABDA · KBBI and SEASITE entries',
+    usageSource: 'https://www.frontiersin.org/journals/language-sciences/articles/10.3389/flang.2026.1879834/full',
+    usageSourceName: 'Soraya et al. · Indonesian swearing in app reviews',
+    reading: { input: 'conto', pronunciation: 'KON-to', ipa: '/ˈkonto/', source: contoSource, sourceName: 'Treccani',
+      explanation: 'With the Italian K-initial reading, “Conto” resembles the first part of “kontol”. The final L is absent. An Indonesian reading of initial C as “ch” weakens the resemblance.',
+      contextSource: 'https://seasite.niu.edu/Indonesian/new_indonesian/Percakapan/indonesia7days/appendix_1.htm',
+    },
+  },
+  {
+    language: 'jv', word: 'jancok', aliases: ['jancuk'], meaning: 'a coarse regional swear word', tone: 'offensive',
+    severity: 'Medium', categories: ['Profanity', 'Slang'], region: 'Surabaya, East Java, Indonesia',
+    dialect: 'Surabayan Javanese', usage: 'Documented in Surabayan speech. Its force depends on the relationship and situation; nationwide frequency is unknown.',
+    impact: 'A regional expletive in a name can sound confrontational, especially when used with strangers.',
+    source: 'https://www.jlls.org/index.php/jlls/article/download/2841/1081', sourceName: 'Journal of Language and Linguistic Studies',
+  },
   {
     language: 'en', word: 'gift', meaning: 'present', tone: 'neutral',
     source: dictionary + 'english-indonesian/gift',
   },
   {
     language: 'de', word: 'Gift', meaning: 'poison', tone: 'negative',
+    ipa: '/ɡɪft/', pronunciation: 'Gift (one syllable)',
     impact: 'German speakers may read “Gift” as “poison”. On food or drink packaging, the name could sound like a warning.',
     source: dictionary + 'german-english/gift',
   },
   {
     language: 'ja', word: 'ばか', aliases: ['baka', '馬鹿', 'バカ'], meaning: 'fool or idiot', tone: 'offensive',
+    pronunciation: 'ba-ka',
     impact: 'Calling someone “baka” can be an insult. If customers shorten the brand to this word, the nickname could sound mocking.',
     source: dictionary + 'japanese-english/馬鹿',
   },
@@ -36,6 +65,7 @@ export const LEXICON = [
   },
   {
     language: 'fr', word: 'sale', meaning: 'dirty', tone: 'negative',
+    ipa: '/sal/',
     impact: 'On a label, the French adjective can suggest something is unclean. That association matters especially for beauty or food brands.',
     source: dictionary + 'french-english/sale',
   },
@@ -76,6 +106,7 @@ export const LEXICON = [
   },
   {
     language: 'en', word: 'damn', meaning: 'an expletive', tone: 'offensive',
+    ipa: '/dæm/', pronunciation: 'dam', severity: 'Medium', categories: ['Profanity'],
     impact: 'This expression of frustration can sound coarse when someone says the brand aloud, particularly in a formal setting.',
     source: dictionary + 'english/damn',
   },
@@ -85,7 +116,8 @@ export const LEXICON = [
     source: dictionary + 'english-spanish/ho',
   },
   {
-    language: 'en', word: 'pen island', aliases: ['penisland'], meaning: 'an unintended anatomical reference', tone: 'wordplay',
+    language: 'en', word: 'pen island', aliases: ['penisland'], flaggedWord: 'penis', meaning: 'the male sex organ', tone: 'wordplay',
+    categories: ['Hidden words', 'Sexual'],
     impact: 'In a handle or domain, “penisland” can also be split as “penis land”. The second reading gives people an easy way to make fun of the brand.',
     source: dictionary + 'english/penis',
   },
@@ -96,3 +128,5 @@ export const SAMPLES = [
   { id: 'baka-studio', name: 'Baka Studio', type: 'Potential insult' },
   { id: 'pen-island', name: 'Pen Island', type: 'Unintended wordplay' },
 ]
+
+export const CHECKER_EXAMPLES = [{ id: 'conto', name: 'Conto' }, { id: 'bako-studio', name: 'Bako Studio' }, ...SAMPLES]
